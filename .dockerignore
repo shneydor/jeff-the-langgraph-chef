@@ -1,0 +1,42 @@
+# Development files
+.env
+.git
+.gitignore
+.pytest_cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env
+venv
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+
+# IDE files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Documentation and demos (not needed in container)
+README.md
+docs/
+demo/
+examples/
+tests/
+
+# Logs and data (will be mounted as volumes)
+logs/
+data/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp

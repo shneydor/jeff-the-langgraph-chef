@@ -3,30 +3,100 @@
 import asyncio
 import json
 import uuid
+import time
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks, Request, status, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel, validator
+import structlog
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+# Configure structured logging
+structlog.configure(
+    processors=[
+        structlog.stdlib.filter_by_level,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.processors.UnicodeDecoder(),
+        structlog.processors.JSONRenderer()
+    ],
+    context_class=dict,
+    logger_factory=structlog.stdlib.LoggerFactory(),
+    wrapper_class=structlog.stdlib.BoundLogger,
+    cache_logger_on_first_use=True,
+)
 
 from ..langgraph_workflow.workflow import JeffWorkflowOrchestrator
 from ..core.config import settings
 
 
 class ChatMessage(BaseModel):
-    """Chat message model."""
+    """Chat message model with validation."""
     message: str
     session_id: Optional[str] = None
+    
+    @validator('message')
+    def message_must_not_be_empty(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Message cannot be empty')
+        if len(v) > 2000:
+            raise ValueError('Message too long (max 2000 characters)')
+        return v.strip()
 
 
 class DemoRequest(BaseModel):
-    """Demo request model."""
+    """Demo request model with validation."""
     scenario: str
     parameters: Optional[Dict[str, Any]] = None
+    
+    @validator('scenario')
+    def scenario_must_be_valid(cls, v):
+        valid_scenarios = {'pasta', 'tomato', 'romantic', 'technique', 'risotto', 'italian'}
+        if v not in valid_scenarios:
+            raise ValueError(f'Invalid scenario. Must be one of: {", ".join(valid_scenarios)}')
+        return v
+
+
+class RecipeRequest(BaseModel):
+    """Recipe generation request model."""
+    recipe_type: str
+    dietary_restrictions: Optional[List[str]] = None
+    serving_size: Optional[int] = 4
+    difficulty_level: Optional[str] = "medium"
+    
+    @validator('recipe_type')
+    def recipe_type_must_not_be_empty(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Recipe type cannot be empty')
+        return v.strip().lower()
+    
+    @validator('serving_size')
+    def serving_size_must_be_valid(cls, v):
+        if v is not None and (v < 1 or v > 20):
+            raise ValueError('Serving size must be between 1 and 20')
+        return v
+    
+    @validator('difficulty_level')
+    def difficulty_must_be_valid(cls, v):
+        if v is not None:
+            valid_levels = {'easy', 'medium', 'hard', 'expert'}
+            if v.lower() not in valid_levels:
+                raise ValueError(f'Difficulty must be one of: {", ".join(valid_levels)}')
+            return v.lower()
+        return v
 
 
 class ConnectionManager:
@@ -57,9 +127,26 @@ class ConnectionManager:
             await connection.send_text(json.dumps(message))
 
 
-# Global instances
+# Global instances and logging
+logger = structlog.get_logger()
 orchestrator = None
 manager = ConnectionManager()
+
+# Rate limiting
+limiter = Limiter(key_func=get_remote_address)
+
+# Security (optional API key for admin endpoints)
+security = HTTPBearer(auto_error=False)
+
+# Server metrics
+server_metrics = {
+    "requests_total": 0,
+    "requests_successful": 0,
+    "requests_failed": 0,
+    "average_response_time": 0.0,
+    "active_sessions": 0,
+    "start_time": datetime.utcnow()
+}
 
 
 @asynccontextmanager
@@ -67,28 +154,106 @@ async def lifespan(app: FastAPI):
     """Application lifespan management."""
     global orchestrator
     # Startup
-    orchestrator = JeffWorkflowOrchestrator()
+    logger.info("Starting Jeff the LangGraph Chef server", version="1.0.0")
+    try:
+        orchestrator = JeffWorkflowOrchestrator()
+        logger.info("LangGraph orchestrator initialized successfully")
+    except Exception as e:
+        logger.error("Failed to initialize orchestrator", error=str(e))
+        raise
+    
     yield
+    
     # Shutdown
+    logger.info("Shutting down Jeff the LangGraph Chef server")
     orchestrator = None
 
 
-# Create FastAPI app
+# Create FastAPI app with production settings
 app = FastAPI(
-    title="Jeff the LangGraph Chef - Interactive Demo",
-    description="Interactive demonstration interface for Jeff's culinary AI capabilities",
+    title="Jeff the LangGraph Chef - Production Server",
+    description="Production-ready LangGraph server for Jeff's culinary AI capabilities",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    docs_url="/docs" if settings.debug else None,
+    redoc_url="/redoc" if settings.debug else None
 )
 
-# Add CORS middleware
+# Add rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Add security middleware
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=["localhost", "127.0.0.1", "0.0.0.0"] + 
+                  (["*"] if settings.debug else [])
+)
+
+# Add CORS middleware with proper configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins if not settings.debug else ["*"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+# Request logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log all HTTP requests with timing and metadata."""
+    start_time = time.time()
+    request_id = str(uuid.uuid4())[:8]
+    
+    # Log request start
+    logger.info(
+        "Request started",
+        request_id=request_id,
+        method=request.method,
+        url=str(request.url),
+        client_ip=request.client.host if request.client else "unknown",
+        user_agent=request.headers.get("user-agent", "unknown")
+    )
+    
+    # Update metrics
+    server_metrics["requests_total"] += 1
+    
+    try:
+        response = await call_next(request)
+        processing_time = time.time() - start_time
+        
+        # Update metrics
+        server_metrics["requests_successful"] += 1
+        server_metrics["average_response_time"] = (
+            (server_metrics["average_response_time"] * (server_metrics["requests_successful"] - 1) + processing_time) / 
+            server_metrics["requests_successful"]
+        )
+        
+        # Log successful response
+        logger.info(
+            "Request completed",
+            request_id=request_id,
+            status_code=response.status_code,
+            processing_time_ms=round(processing_time * 1000, 2)
+        )
+        
+        return response
+        
+    except Exception as e:
+        processing_time = time.time() - start_time
+        server_metrics["requests_failed"] += 1
+        
+        # Log error
+        logger.error(
+            "Request failed",
+            request_id=request_id,
+            error=str(e),
+            processing_time_ms=round(processing_time * 1000, 2)
+        )
+        
+        raise
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -641,25 +806,79 @@ async def get_demo_page():
 
 @app.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
-    """WebSocket endpoint for real-time chat."""
-    await manager.connect(websocket, session_id)
+    """WebSocket endpoint for real-time chat with comprehensive logging."""
+    connection_id = str(uuid.uuid4())[:8]
+    
+    logger.info(
+        "WebSocket connection attempt",
+        session_id=session_id,
+        connection_id=connection_id,
+        client_ip=websocket.client.host if websocket.client else "unknown"
+    )
     
     try:
+        await manager.connect(websocket, session_id)
+        server_metrics["active_sessions"] = len(manager.session_connections)
+        
+        logger.info(
+            "WebSocket connected",
+            session_id=session_id,
+            connection_id=connection_id,
+            active_sessions=server_metrics["active_sessions"]
+        )
+        
         while True:
             data = await websocket.receive_text()
-            message_data = json.loads(data)
             
-            if message_data["type"] == "chat_message":
+            try:
+                message_data = json.loads(data)
+            except json.JSONDecodeError as e:
+                logger.warning(
+                    "Invalid JSON received",
+                    session_id=session_id,
+                    connection_id=connection_id,
+                    error=str(e)
+                )
+                await manager.send_personal_message({
+                    "type": "error",
+                    "message": "Invalid message format"
+                }, session_id)
+                continue
+            
+            if message_data.get("type") == "chat_message":
+                start_time = time.time()
+                user_message = message_data.get("message", "")
+                
+                logger.info(
+                    "WebSocket chat message received",
+                    session_id=session_id,
+                    connection_id=connection_id,
+                    message_length=len(user_message)
+                )
+                
                 # Send typing indicator
                 await manager.send_personal_message({
                     "type": "typing_start"
                 }, session_id)
                 
                 try:
+                    if orchestrator is None:
+                        raise Exception("Orchestrator not available")
+                        
                     # Process message through Jeff's workflow
                     result = await orchestrator.process_user_input(
-                        user_input=message_data["message"],
+                        user_input=user_message,
                         session_id=session_id
+                    )
+                    
+                    processing_time = time.time() - start_time
+                    
+                    logger.info(
+                        "WebSocket chat response generated",
+                        session_id=session_id,
+                        connection_id=connection_id,
+                        processing_time_ms=round(processing_time * 1000, 2),
+                        response_length=len(result.get("response", ""))
                     )
                     
                     # Send response
@@ -670,39 +889,119 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     }, session_id)
                     
                 except Exception as e:
+                    processing_time = time.time() - start_time
+                    
+                    logger.error(
+                        "WebSocket chat error",
+                        session_id=session_id,
+                        connection_id=connection_id,
+                        error=str(e),
+                        processing_time_ms=round(processing_time * 1000, 2),
+                        exc_info=True
+                    )
+                    
                     await manager.send_personal_message({
                         "type": "error",
-                        "message": f"Something went wrong: {str(e)}"
+                        "message": "Something went wrong in the kitchen - please try again!"
                     }, session_id)
                     
     except WebSocketDisconnect:
+        logger.info(
+            "WebSocket disconnected",
+            session_id=session_id,
+            connection_id=connection_id
+        )
+    except Exception as e:
+        logger.error(
+            "WebSocket connection error",
+            session_id=session_id,
+            connection_id=connection_id,
+            error=str(e),
+            exc_info=True
+        )
+    finally:
         manager.disconnect(websocket, session_id)
+        server_metrics["active_sessions"] = len(manager.session_connections)
+        
+        logger.info(
+            "WebSocket cleanup completed",
+            session_id=session_id,
+            connection_id=connection_id,
+            remaining_sessions=server_metrics["active_sessions"]
+        )
 
 
 @app.post("/api/chat")
-async def chat_endpoint(message: ChatMessage):
-    """REST API endpoint for chat (alternative to WebSocket)."""
+@limiter.limit("30/minute")
+async def chat_endpoint(request: Request, message: ChatMessage):
+    """REST API endpoint for chat with comprehensive logging and error handling."""
+    start_time = time.time()
+    session_id = message.session_id or str(uuid.uuid4())
+    request_id = str(uuid.uuid4())[:8]
+    
+    logger.info(
+        "Chat request received",
+        request_id=request_id,
+        session_id=session_id,
+        message_length=len(message.message),
+        client_ip=request.client.host if request.client else "unknown"
+    )
+    
     try:
-        session_id = message.session_id or str(uuid.uuid4())
+        if orchestrator is None:
+            logger.error("Chat request failed - orchestrator not available", request_id=request_id)
+            raise HTTPException(
+                status_code=503, 
+                detail="Service temporarily unavailable - orchestrator not initialized"
+            )
         
         result = await orchestrator.process_user_input(
             user_input=message.message,
             session_id=session_id
         )
         
+        processing_time = time.time() - start_time
+        
+        logger.info(
+            "Chat request completed",
+            request_id=request_id,
+            session_id=session_id,
+            processing_time_ms=round(processing_time * 1000, 2),
+            response_length=len(result.get("response", ""))
+        )
+        
         return JSONResponse({
             "success": True,
             "response": result.get("response", "I'm having trouble in the kitchen right now!"),
             "metadata": result.get("metadata", {}),
-            "session_id": session_id
+            "session_id": session_id,
+            "processing_time_ms": round(processing_time * 1000, 2),
+            "request_id": request_id
         })
         
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        processing_time = time.time() - start_time
+        
+        logger.error(
+            "Chat request error",
+            request_id=request_id,
+            session_id=session_id,
+            error=str(e),
+            processing_time_ms=round(processing_time * 1000, 2),
+            exc_info=True
+        )
+        
+        raise HTTPException(
+            status_code=500, 
+            detail="Internal server error - please try again"
+        )
 
 
 @app.post("/api/demo")
-async def run_demo_scenario(demo: DemoRequest):
+@limiter.limit("10/minute")
+async def run_demo_scenario(request: Request, demo: DemoRequest):
     """Run a predefined demo scenario."""
     scenarios = {
         "pasta": "Can you give me a romantic pasta recipe with tomatoes?",
@@ -739,33 +1038,244 @@ async def run_demo_scenario(demo: DemoRequest):
 
 @app.get("/api/health")
 async def health_check():
-    """Health check endpoint."""
-    return JSONResponse({
-        "status": "healthy",
+    """Comprehensive health check endpoint."""
+    start_time = time.time()
+    health_status = "healthy"
+    checks = {}
+    
+    # Check orchestrator
+    try:
+        if orchestrator is None:
+            checks["orchestrator"] = {"status": "down", "message": "Orchestrator not initialized"}
+            health_status = "unhealthy"
+        else:
+            checks["orchestrator"] = {"status": "up", "message": "LangGraph orchestrator operational"}
+    except Exception as e:
+        checks["orchestrator"] = {"status": "error", "message": str(e)}
+        health_status = "unhealthy"
+    
+    # Check dependencies
+    try:
+        import anthropic
+        checks["anthropic"] = {"status": "up", "message": "Anthropic client available"}
+    except ImportError:
+        checks["anthropic"] = {"status": "error", "message": "Anthropic client not available"}
+        health_status = "unhealthy"
+    
+    # Performance metrics
+    uptime = (datetime.utcnow() - server_metrics["start_time"]).total_seconds()
+    
+    response_data = {
+        "status": health_status,
         "timestamp": datetime.utcnow().isoformat(),
         "service": "Jeff the LangGraph Chef",
-        "version": "1.0.0"
-    })
+        "version": "1.0.0",
+        "environment": settings.env,
+        "uptime_seconds": round(uptime, 2),
+        "checks": checks,
+        "metrics": {
+            "requests_total": server_metrics["requests_total"],
+            "requests_successful": server_metrics["requests_successful"],
+            "requests_failed": server_metrics["requests_failed"],
+            "success_rate": round(
+                (server_metrics["requests_successful"] / max(server_metrics["requests_total"], 1)) * 100, 2
+            ),
+            "average_response_time_ms": round(server_metrics["average_response_time"] * 1000, 2),
+            "active_sessions": len(manager.session_connections)
+        },
+        "response_time_ms": round((time.time() - start_time) * 1000, 2)
+    }
+    
+    status_code = 200 if health_status == "healthy" else 503
+    
+    logger.info(
+        "Health check performed",
+        status=health_status,
+        uptime_seconds=uptime,
+        active_sessions=len(manager.session_connections)
+    )
+    
+    return JSONResponse(response_data, status_code=status_code)
 
 
 @app.get("/api/personality/status")
 async def get_personality_status():
     """Get current personality status."""
     return JSONResponse({
-        "tomato_obsession_level": 9,
-        "romantic_intensity": 8,
-        "base_energy_level": 7,
+        "tomato_obsession_level": settings.jeff_tomato_obsession_level,
+        "romantic_intensity": settings.jeff_romantic_intensity,
+        "base_energy_level": settings.jeff_base_energy_level,
+        "creativity_multiplier": settings.jeff_creativity_multiplier,
         "current_mood": "enthusiastic",
-        "personality_consistency_threshold": 0.90,
+        "personality_consistency_threshold": settings.personality_consistency_threshold,
+        "content_quality_threshold": settings.content_quality_threshold,
         "features_enabled": {
             "tomato_integration": True,
             "romantic_writing": True,
             "quality_gates": True,
-            "memory_system": True
+            "memory_system": settings.enable_memory_system,
+            "image_generation": settings.enable_image_generation,
+            "multi_platform": settings.enable_multi_platform
+        }
+    })
+
+
+@app.get("/api/metrics")
+async def get_metrics():
+    """Get server performance metrics."""
+    uptime = (datetime.utcnow() - server_metrics["start_time"]).total_seconds()
+    
+    return JSONResponse({
+        "uptime_seconds": round(uptime, 2),
+        "requests": {
+            "total": server_metrics["requests_total"],
+            "successful": server_metrics["requests_successful"],
+            "failed": server_metrics["requests_failed"],
+            "success_rate_percent": round(
+                (server_metrics["requests_successful"] / max(server_metrics["requests_total"], 1)) * 100, 2
+            )
+        },
+        "performance": {
+            "average_response_time_ms": round(server_metrics["average_response_time"] * 1000, 2),
+            "response_time_threshold_ms": settings.response_time_threshold * 1000
+        },
+        "sessions": {
+            "active": len(manager.session_connections),
+            "total_connections": len(manager.active_connections)
+        },
+        "configuration": {
+            "environment": settings.env,
+            "debug_mode": settings.debug,
+            "log_level": settings.log_level
+        },
+        "timestamp": datetime.utcnow().isoformat()
+    })
+
+
+@app.post("/api/recipe/generate")
+@limiter.limit("20/minute")
+async def generate_recipe(request: Request, recipe_request: RecipeRequest):
+    """Generate a recipe using Jeff's culinary expertise."""
+    start_time = time.time()
+    request_id = str(uuid.uuid4())[:8]
+    session_id = f"recipe_{int(time.time())}"
+    
+    logger.info(
+        "Recipe generation requested",
+        request_id=request_id,
+        recipe_type=recipe_request.recipe_type,
+        dietary_restrictions=recipe_request.dietary_restrictions,
+        serving_size=recipe_request.serving_size,
+        difficulty_level=recipe_request.difficulty_level,
+        client_ip=request.client.host if request.client else "unknown"
+    )
+    
+    try:
+        if orchestrator is None:
+            logger.error("Recipe generation failed - orchestrator not available", request_id=request_id)
+            raise HTTPException(
+                status_code=503,
+                detail="Service temporarily unavailable - orchestrator not initialized"
+            )
+        
+        # Construct recipe prompt
+        prompt = f"Create a {recipe_request.difficulty_level} {recipe_request.recipe_type} recipe"
+        if recipe_request.serving_size:
+            prompt += f" for {recipe_request.serving_size} people"
+        if recipe_request.dietary_restrictions:
+            prompt += f" that is {', '.join(recipe_request.dietary_restrictions)}"
+        
+        result = await orchestrator.process_user_input(
+            user_input=prompt,
+            session_id=session_id
+        )
+        
+        processing_time = time.time() - start_time
+        
+        logger.info(
+            "Recipe generation completed",
+            request_id=request_id,
+            recipe_type=recipe_request.recipe_type,
+            processing_time_ms=round(processing_time * 1000, 2),
+            response_length=len(result.get("response", ""))
+        )
+        
+        return JSONResponse({
+            "success": True,
+            "recipe": result.get("response", "I couldn't create that recipe right now!"),
+            "metadata": result.get("metadata", {}),
+            "request": {
+                "recipe_type": recipe_request.recipe_type,
+                "dietary_restrictions": recipe_request.dietary_restrictions,
+                "serving_size": recipe_request.serving_size,
+                "difficulty_level": recipe_request.difficulty_level
+            },
+            "processing_time_ms": round(processing_time * 1000, 2),
+            "request_id": request_id
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        processing_time = time.time() - start_time
+        
+        logger.error(
+            "Recipe generation error",
+            request_id=request_id,
+            recipe_type=recipe_request.recipe_type,
+            error=str(e),
+            processing_time_ms=round(processing_time * 1000, 2),
+            exc_info=True
+        )
+        
+        raise HTTPException(
+            status_code=500,
+            detail="Recipe generation failed - please try again"
+        )
+
+
+@app.post("/api/personality/update")
+async def update_personality(request: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Update Jeff's personality parameters (admin only)."""
+    if not settings.debug:
+        raise HTTPException(
+            status_code=403,
+            detail="Personality updates only allowed in debug mode"
+        )
+    
+    # This would integrate with the personality engine in a full implementation
+    logger.info(
+        "Personality update requested",
+        client_ip=request.client.host if request.client else "unknown",
+        has_auth=credentials is not None
+    )
+    
+    return JSONResponse({
+        "message": "Personality update feature coming in future version",
+        "current_settings": {
+            "tomato_obsession": settings.jeff_tomato_obsession_level,
+            "romantic_intensity": settings.jeff_romantic_intensity,
+            "energy_level": settings.jeff_base_energy_level
         }
     })
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    
+    logger.info(
+        "Starting Jeff the LangGraph Chef server",
+        host=settings.host,
+        port=settings.port,
+        environment=settings.env,
+        debug=settings.debug
+    )
+    
+    uvicorn.run(
+        app, 
+        host=settings.host, 
+        port=settings.port,
+        log_level=settings.log_level.lower(),
+        access_log=True,
+        reload=settings.debug
+    )
