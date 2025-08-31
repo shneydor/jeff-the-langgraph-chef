@@ -3,7 +3,7 @@
 import asyncio
 import time
 from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 import re
 
 from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
@@ -41,7 +41,7 @@ class BaseNode:
         """Execute the node with timing and error handling."""
         execution_info = NodeExecutionInfo(
             node_name=self.node_name,
-            start_time=datetime.utcnow()
+            start_time=datetime.now(timezone.utc)
         )
         
         try:
@@ -49,7 +49,7 @@ class BaseNode:
             result_state = await self._execute_logic(state)
             
             # Record successful execution
-            execution_info.end_time = datetime.utcnow()
+            execution_info.end_time = datetime.now(timezone.utc)
             execution_info.execution_time = (execution_info.end_time - execution_info.start_time).total_seconds()
             execution_info.success = True
             
@@ -60,7 +60,7 @@ class BaseNode:
             
         except Exception as e:
             # Record failed execution
-            execution_info.end_time = datetime.utcnow()
+            execution_info.end_time = datetime.now(timezone.utc)
             execution_info.execution_time = (execution_info.end_time - execution_info.start_time).total_seconds()
             execution_info.success = False
             
@@ -717,7 +717,7 @@ class OutputFormatterNode(BaseNode):
         quality_results = state.get("quality_check_results", [])
         
         metadata = {
-            "generation_timestamp": datetime.utcnow().isoformat(),
+            "generation_timestamp": datetime.now(timezone.utc).isoformat(),
             "workflow_duration": StateManager.calculate_workflow_duration(state),
             "content_type": state.get("content_type"),
             "personality_mood": personality_state.current_mood,

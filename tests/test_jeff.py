@@ -5,7 +5,7 @@ import sys
 import os
 
 # Add the project root to Python path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from jeff.personality.engine import PersonalityEngine
 from jeff.personality.models import PersonalityDimensions, PersonalityContext, MoodState

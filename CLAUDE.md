@@ -34,10 +34,14 @@ jeff-the-langgraph-chef/
 │   │   └── generator.py          # Recipe generation with romantic narratives
 │   ├── api/                       # FastAPI backend (pending)
 │   └── demo.py                   # Interactive demo system
+├── docs/                          # Project documentation
+│   └── project.md                # Comprehensive project documentation
+├── tests/                         # Test suite
+│   ├── test_jeff.py              # Main test suite
+│   └── run_tests.py              # Test runner
 ├── requirements.txt               # Python dependencies
 ├── pyproject.toml                # Project configuration
-├── .env.example                  # Environment variables template
-└── test_jeff.py                  # Test suite
+└── .env.example                  # Environment variables template
 ```
 
 ## Development Commands
@@ -68,7 +72,7 @@ python -m jeff.demo batch
 python -m jeff.demo single "make me pasta with tomatoes"
 
 # Run test suite
-python test_jeff.py
+python tests/test_jeff.py
 ```
 
 ## Architecture Overview

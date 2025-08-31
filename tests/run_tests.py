@@ -16,7 +16,7 @@ def run_tests():
     os.environ["PERSONALITY_CONSISTENCY_THRESHOLD"] = "0.85"
     
     # Change to project directory
-    project_root = Path(__file__).parent
+    project_root = Path(__file__).parent.parent
     os.chdir(project_root)
     
     # Run tests
@@ -28,9 +28,9 @@ def run_tests():
         result = subprocess.run([
             sys.executable, "-m", "pytest", 
             "jeff/tests/",
+            "tests/",
             "-v",
-            "--tb=short",
-            "--asyncio-mode=auto"
+            "--tb=short"
         ], capture_output=False)
         
         if result.returncode == 0:

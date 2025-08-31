@@ -3,7 +3,7 @@
 from typing import Dict, List, Optional, Any
 from enum import Enum
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class MoodState(str, Enum):
@@ -73,7 +73,7 @@ class PersonalityState(BaseModel):
     current_mood: MoodState = Field(default=MoodState.ENTHUSIASTIC)
     context: PersonalityContext = Field(default_factory=PersonalityContext)
     consistency_score: Optional[float] = Field(None, ge=0.0, le=1.0)
-    last_updated: datetime = Field(default_factory=datetime.utcnow)
+    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     
     # Mood transition history for learning
     mood_history: List[Dict[str, Any]] = Field(default_factory=list)

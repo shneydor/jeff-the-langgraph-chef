@@ -2,7 +2,7 @@
 
 import random
 from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from enum import Enum
 
@@ -111,7 +111,7 @@ class Recipe:
         if self.dietary_tags is None:
             self.dietary_tags = []
         if self.created_at is None:
-            self.created_at = datetime.utcnow()
+            self.created_at = datetime.now(timezone.utc)
 
 
 class RecipeGenerator:

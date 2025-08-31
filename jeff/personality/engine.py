@@ -3,7 +3,7 @@
 import asyncio
 import random
 from typing import Dict, List, Optional, Tuple, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from .models import (
     PersonalityState, 
@@ -138,7 +138,7 @@ class PersonalityEngine:
             "from_mood": self._state.current_mood,
             "to_mood": new_mood,
             "reason": reason,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "context": self._state.context.model_dump() if self._state.context else None
         }
         self._state.mood_history.append(transition)
@@ -371,7 +371,7 @@ class PersonalityEngine:
         """Get recent factors that influenced mood changes."""
         recent_influences = []
         recent_transitions = [t for t in self._state.mood_history if 
-                            (datetime.fromisoformat(t["timestamp"]) if isinstance(t["timestamp"], str) else t["timestamp"]) > datetime.utcnow() - timedelta(hours=1)]
+                            (datetime.fromisoformat(t["timestamp"]) if isinstance(t["timestamp"], str) else t["timestamp"]) > datetime.now(timezone.utc) - timedelta(hours=1)]
         
         for transition in recent_transitions[-3:]:  # Last 3 transitions
             recent_influences.append(transition["reason"])
@@ -444,12 +444,12 @@ class PersonalityEngine:
     def update_dimensions(self, dimensions: PersonalityDimensions) -> None:
         """Update personality dimensions."""
         self._state.dimensions = dimensions
-        self._state.last_updated = datetime.utcnow()
+        self._state.last_updated = datetime.now(timezone.utc)
     
     def update_context(self, context: PersonalityContext) -> None:
         """Update personality context."""
         self._state.context = context
-        self._state.last_updated = datetime.utcnow()
+        self._state.last_updated = datetime.now(timezone.utc)
     
     def get_consistency_stats(self) -> Dict[str, float]:
         """Get personality consistency statistics."""

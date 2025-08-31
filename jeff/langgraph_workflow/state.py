@@ -1,7 +1,7 @@
 """LangGraph state management for Jeff the Chef's workflow orchestration."""
 
 from typing import Dict, List, Optional, Any, Union, TypedDict, Annotated
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pydantic import BaseModel, Field
 
@@ -59,7 +59,7 @@ class QualityCheckResult(BaseModel):
 
 class WorkflowMetrics(BaseModel):
     """Metrics tracking for workflow performance."""
-    start_time: datetime = Field(default_factory=datetime.utcnow)
+    start_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     end_time: Optional[datetime] = None
     processing_time: Optional[float] = None
     stage_durations: Dict[str, float] = Field(default_factory=dict)
@@ -88,7 +88,7 @@ class ProcessingError(BaseModel):
     error_type: str = Field(..., description="Type of error")
     error_message: str = Field(..., description="Error message")
     node_name: str = Field(..., description="Node where error occurred")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     retry_count: int = Field(0, description="Number of retries attempted")
     recoverable: bool = Field(True, description="Whether error is recoverable")
     recovery_strategy: Optional[str] = Field(None, description="Suggested recovery strategy")
@@ -97,7 +97,7 @@ class ProcessingError(BaseModel):
 class NodeExecutionInfo(BaseModel):
     """Information about node execution."""
     node_name: str = Field(..., description="Name of the executed node")  
-    start_time: datetime = Field(default_factory=datetime.utcnow)
+    start_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     end_time: Optional[datetime] = None
     execution_time: Optional[float] = None
     success: bool = True
@@ -241,8 +241,8 @@ class StateManager:
             # Context and conversation
             "conversation_context": conversation_context.model_dump(),
             "session_metadata": {
-                "created_at": datetime.utcnow().isoformat(),
-                "last_updated": datetime.utcnow().isoformat()
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "last_updated": datetime.now(timezone.utc).isoformat()
             },
             
             # Workflow metrics
@@ -286,7 +286,7 @@ class StateManager:
         state["current_stage"] = new_stage
         
         # Update metrics
-        current_time = datetime.utcnow()
+        current_time = datetime.now(timezone.utc)
         if "workflow_metrics" in state and state["workflow_metrics"]:
             metrics_data = state["workflow_metrics"]
             if old_stage and "stage_durations" in metrics_data:
@@ -413,7 +413,7 @@ class StateManager:
     @staticmethod
     def finalize_workflow(state: JeffWorkflowState, final_output: str) -> JeffWorkflowState:
         """Finalize workflow with output and metrics."""
-        current_time = datetime.utcnow()
+        current_time = datetime.now(timezone.utc)
         
         # Set final output
         state["final_output"] = final_output
