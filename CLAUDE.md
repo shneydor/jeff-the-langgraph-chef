@@ -35,10 +35,23 @@ jeff-the-langgraph-chef/
 │   ├── api/                       # FastAPI backend (pending)
 │   └── demo.py                   # Interactive demo system
 ├── docs/                          # Project documentation
-│   └── project.md                # Comprehensive project documentation
+│   ├── project.md                # Comprehensive project documentation
+│   └── project backup.md         # Project documentation backup
+├── demo/                          # HTML demo interfaces
+│   ├── jeff_complete_demo.html   # Full-featured web interface
+│   └── jeff_static.html          # Static demo page
+├── examples/                      # Example and minimal implementations
+│   ├── minimal_jeff.py           # Minimal Jeff implementation
+│   └── simple_test.py            # Simple test script
+├── scripts/                       # Server and utility scripts
+│   ├── launch_web_demo.py        # Web server startup script
+│   ├── http_server.py            # Simple HTTP server
+│   ├── jeff_simple_server.py     # Alternative server implementation
+│   └── test_server.py            # Server testing script
 ├── tests/                         # Test suite
 │   ├── test_jeff.py              # Main test suite
-│   └── run_tests.py              # Test runner
+│   ├── run_tests.py              # Test runner
+│   └── test_page.html            # Test HTML page
 ├── requirements.txt               # Python dependencies
 ├── pyproject.toml                # Project configuration
 └── .env.example                  # Environment variables template
