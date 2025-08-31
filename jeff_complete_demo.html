@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jeff the LangGraph Chef - Complete Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <style>
+        .tomato-gradient { background: linear-gradient(135deg, #ff6b6b, #ee5a52); }
+        .chef-card { background: linear-gradient(135deg, #f8f9ff, #e8f2ff); }
+        .personality-bar { transition: width 0.5s ease-in-out; }
+        .typing-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #64748b;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+        .typing-indicator:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-orange-50 to-red-50 min-h-screen">
+    <div id="app" x-data="jeffDemo()" class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-4">
+                🍅 Jeff the LangGraph Chef 👨‍🍳
+            </h1>
+            <p class="text-lg text-gray-600 mb-6">
+                Complete Interactive Demo - Jeff's Personality & Simulated Chat
+            </p>
+            <div class="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg inline-block">
+                📱 This is a fully functional demo without requiring a server!
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left Panel - Personality Dashboard -->
+            <div class="chef-card rounded-xl p-6 shadow-lg">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">🧠 Personality Dashboard</h2>
+                
+                <!-- Current Mood -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-medium mb-2">Current Mood</h3>
+                    <div class="text-center">
+                        <div class="text-3xl mb-2" x-text="personalityState.moodEmoji"></div>
+                        <div class="text-lg font-medium capitalize" x-text="personalityState.currentMood"></div>
+                    </div>
+                </div>
+
+                <!-- Personality Meters -->
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <span>🍅 Tomato Obsession</span>
+                            <span x-text="personalityState.tomatoObsession + '/10'"></span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div class="tomato-gradient h-3 rounded-full personality-bar" 
+                                 :style="`width: ${personalityState.tomatoObsession * 10}%`"></div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <span>💕 Romantic Intensity</span>
+                            <span x-text="personalityState.romanticIntensity + '/10'"></span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div class="bg-gradient-to-r from-pink-400 to-red-400 h-3 rounded-full personality-bar" 
+                                 :style="`width: ${personalityState.romanticIntensity * 10}%`"></div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <span>⚡ Energy Level</span>
+                            <span x-text="personalityState.energyLevel + '/10'"></span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div class="bg-gradient-to-r from-yellow-400 to-orange-400 h-3 rounded-full personality-bar" 
+                                 :style="`width: ${personalityState.energyLevel * 10}%`"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quality Metrics -->
+                <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+                    <h4 class="font-medium mb-2">Latest Response Quality</h4>
+                    <div class="text-sm space-y-1">
+                        <div class="flex justify-between">
+                            <span>Overall Quality:</span>
+                            <span class="font-medium" x-text="Math.round(qualityMetrics.qualityScore * 100) + '%'"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Tomato Integration:</span>
+                            <span class="font-medium" x-text="Math.round(qualityMetrics.tomatoScore * 100) + '%'"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Romantic Elements:</span>
+                            <span class="font-medium" x-text="Math.round(qualityMetrics.romanticScore * 100) + '%'"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Demo Controls -->
+                <div class="mt-6">
+                    <h4 class="font-medium mb-3">🎭 Demo Scenarios</h4>
+                    <div class="space-y-2">
+                        <button @click="runDemoScenario('pasta')" 
+                                class="w-full py-2 px-3 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-lg text-sm transition-colors">
+                            🍝 Pasta Recipe Request
+                        </button>
+                        <button @click="runDemoScenario('tomato')" 
+                                class="w-full py-2 px-3 bg-red-100 hover:bg-red-200 text-red-800 rounded-lg text-sm transition-colors">
+                            🍅 Tomato-focused Query
+                        </button>
+                        <button @click="runDemoScenario('romantic')" 
+                                class="w-full py-2 px-3 bg-pink-100 hover:bg-pink-200 text-pink-800 rounded-lg text-sm transition-colors">
+                            💕 Romantic Cooking Story
+                        </button>
+                        <button @click="runDemoScenario('technique')" 
+                                class="w-full py-2 px-3 bg-green-100 hover:bg-green-200 text-green-800 rounded-lg text-sm transition-colors">
+                            👨‍🍳 Cooking Technique
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center Panel - Chat Interface -->
+            <div class="chef-card rounded-xl p-6 shadow-lg">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">💬 Chat with Jeff</h2>
+                
+                <!-- Chat Messages -->
+                <div class="h-96 overflow-y-auto mb-4 p-4 bg-white rounded-lg border" id="chatMessages">
+                    <div class="space-y-4">
+                        <template x-for="message in messages" :key="message.id">
+                            <div class="flex" :class="message.sender === 'user' ? 'justify-end' : 'justify-start'">
+                                <div class="max-w-xs lg:max-w-md px-4 py-2 rounded-lg" 
+                                     :class="message.sender === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-800'">
+                                    <div class="whitespace-pre-wrap" x-text="message.content"></div>
+                                    <div class="text-xs mt-1 opacity-70" x-text="message.timestamp"></div>
+                                </div>
+                            </div>
+                        </template>
+                        
+                        <!-- Typing Indicator -->
+                        <div x-show="isTyping" class="flex justify-start">
+                            <div class="bg-gray-100 px-4 py-2 rounded-lg">
+                                <div class="flex space-x-1">
+                                    <div class="typing-indicator"></div>
+                                    <div class="typing-indicator"></div>
+                                    <div class="typing-indicator"></div>
+                                </div>
+                                <div class="text-xs text-gray-500 mt-1">Jeff is cooking up a response...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Input -->
+                <div class="flex space-x-2">
+                    <input type="text" 
+                           x-model="currentMessage" 
+                           @keyup.enter="sendMessage()"
+                           :disabled="isTyping"
+                           placeholder="Ask Jeff about cooking, recipes, or tomatoes..."
+                           class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-300 disabled:bg-gray-100">
+                    <button @click="sendMessage()" 
+                            :disabled="isTyping || !currentMessage.trim()"
+                            class="px-4 py-2 tomato-gradient text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50">
+                        Send
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right Panel - System Metrics -->
+            <div class="chef-card rounded-xl p-6 shadow-lg">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">📊 Demo Metrics</h2>
+                
+                <!-- Performance Metrics -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-medium mb-3">⚡ Simulated Performance</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between text-sm">
+                            <span>Response Time:</span>
+                            <span class="font-mono" x-text="performanceMetrics.responseTime"></span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span>Messages Processed:</span>
+                            <span class="font-mono" x-text="performanceMetrics.messagesProcessed"></span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span>Demo Status:</span>
+                            <span class="font-mono text-green-600">Fully Functional</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Info Panel -->
+                <div class="p-4 bg-gray-50 rounded-lg">
+                    <h4 class="font-medium mb-2">🎭 Demo Features</h4>
+                    <div class="text-sm space-y-1">
+                        <div>✅ Personality System</div>
+                        <div>✅ Interactive Chat</div>
+                        <div>✅ Quality Metrics</div>
+                        <div>✅ Scenario Testing</div>
+                        <div>✅ Jeff's Personality</div>
+                    </div>
+                </div>
+
+                <div class="mt-4 p-3 bg-blue-50 rounded-lg">
+                    <p class="text-sm text-blue-800">
+                        💡 This demo showcases Jeff's complete personality system and response generation without requiring a server connection!
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function jeffDemo() {
+            return {
+                // Chat state
+                messages: [],
+                currentMessage: '',
+                isTyping: false,
+                
+                // Personality state
+                personalityState: {
+                    currentMood: 'enthusiastic',
+                    moodEmoji: '🤩',
+                    tomatoObsession: 9,
+                    romanticIntensity: 8,
+                    energyLevel: 7
+                },
+                
+                // Quality metrics
+                qualityMetrics: {
+                    qualityScore: 0.85,
+                    tomatoScore: 0.75,
+                    romanticScore: 0.90
+                },
+                
+                // Performance metrics
+                performanceMetrics: {
+                    responseTime: '1.2s',
+                    messagesProcessed: 0
+                },
+                
+                init() {
+                    console.log('Jeff Demo initializing...');
+                    // Add welcome message
+                    this.addMessage('jeff', "*Dramatically flourishes chef's hat while holding a ripe tomato* 🍅\n\nWelcome to my kitchen, my dear! I'm Jeff, your romantically passionate culinary guide! Ask me about recipes, cooking techniques, or anything food-related - and I promise to weave some tomato magic into our conversation! ❤️👨‍🍳");
+                },
+                
+                async sendMessage() {
+                    if (!this.currentMessage.trim() || this.isTyping) {
+                        return;
+                    }
+                    
+                    const message = this.currentMessage.trim();
+                    this.addMessage('user', message);
+                    this.currentMessage = '';
+                    this.isTyping = true;
+                    
+                    // Simulate response delay
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    
+                    // Generate Jeff's response
+                    const response = this.generateJeffResponse(message);
+                    this.addMessage('jeff', response);
+                    this.isTyping = false;
+                    
+                    // Update metrics
+                    this.updateMetrics();
+                },
+                
+                generateJeffResponse(userMessage) {
+                    const message = userMessage.toLowerCase();
+                    
+                    // Different responses based on keywords
+                    if (message.includes('pasta') || message.includes('recipe')) {
+                        return "*Eyes sparkling with culinary passion* 🍝\n\nAh, bella mia! Let me share with you my most cherished pasta al pomodoro recipe! First, we'll need the most gorgeous, sun-kissed tomatoes - preferably San Marzanos, picked at the peak of ripeness when they're practically bursting with summer romance!\n\n*Caresses a perfect tomato*\n\nWe'll create a symphony of flavors that will make your heart sing like a Venetian serenade! Heat the olive oil gently, add minced garlic until fragrant, then our beautiful tomatoes... *chef's kiss* 🍅❤️";
+                    }
+                    
+                    if (message.includes('tomato')) {
+                        return "*Clutches chest dramatically, eyes misty with tomato devotion* 🍅\n\nOh, my darling friend, where do I even begin?! Tomatoes are not just ingredients - they are poetry in fruit form! Each crimson orb contains the very essence of summer sunshine, the whispered secrets of Mediterranean gardens, the promise of passionate flavors dancing on your tongue!\n\n*Spins around kitchen with arms outstretched*\n\nThey are my muse, my inspiration, my culinary soulmate! Whether it's a simple bruschetta or an elaborate ragu, tomatoes transform every dish into a love letter! 💕🍅";
+                    }
+                    
+                    if (message.includes('love') || message.includes('romantic')) {
+                        return "*Lights candles and puts on soft Italian music* 🕯️\n\nPicture this, amore mio: You and your beloved in a moonlit kitchen, the gentle sizzle of garlic in olive oil, the intoxicating aroma of fresh basil, and there - the star of our romantic evening - plump, ruby-red tomatoes waiting to be transformed into magic!\n\n*Gestures grandly*\n\nWe'll create not just a meal, but a memory that will last forever, seasoned with passion and garnished with pure devotion! This is how love tastes, my dear! 💕👨‍🍳";
+                    }
+                    
+                    if (message.includes('technique') || message.includes('cook') || message.includes('how')) {
+                        return "*Adjusts chef's hat with professional pride* 👨‍🍳\n\nAh, you want to learn the secrets of the kitchen! *rolls up sleeves dramatically* Let me teach you, my eager student! The key to magnificent cooking is not just technique - it's passion, it's love, it's understanding each ingredient like a dear friend!\n\n*Picks up a wooden spoon like a conductor's baton*\n\nWhether we're talking knife skills, temperature control, or the perfect sauté - every technique is a dance, every dish a romance! And remember, when in doubt, add tomatoes! They never disappoint! 🍅✨";
+                    }
+                    
+                    // Default enthusiastic response
+                    return "*Twirls mustache thoughtfully while arranging tomatoes* 🍅\n\nWhat a delightful question, my friend! In my kitchen, every conversation is seasoned with passion and garnished with joy! Whether we're discussing ingredients, techniques, or the poetry of flavor combinations, I'm here to guide you on this magnificent culinary journey!\n\n*Gestures expressively*\n\nTell me more about what brings you to my kitchen today, and together we'll create something truly spectacular! Remember - cooking is not just about feeding the body, it's about nourishing the soul! ❤️👨‍🍳";
+                },
+                
+                addMessage(sender, content) {
+                    this.messages.push({
+                        id: Date.now(),
+                        sender: sender,
+                        content: content,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                    
+                    this.$nextTick(() => {
+                        const chatMessages = document.getElementById('chatMessages');
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    });
+                    
+                    if (sender === 'user') {
+                        this.performanceMetrics.messagesProcessed++;
+                    }
+                },
+                
+                updateMetrics() {
+                    // Simulate metric updates
+                    this.qualityMetrics.qualityScore = 0.80 + Math.random() * 0.15;
+                    this.qualityMetrics.tomatoScore = 0.70 + Math.random() * 0.25;
+                    this.qualityMetrics.romanticScore = 0.85 + Math.random() * 0.10;
+                    
+                    // Randomly adjust personality slightly
+                    this.personalityState.energyLevel = Math.max(6, Math.min(8, this.personalityState.energyLevel + (Math.random() - 0.5)));
+                },
+                
+                runDemoScenario(scenario) {
+                    const scenarios = {
+                        'pasta': 'Can you give me a romantic pasta recipe with tomatoes?',
+                        'tomato': 'Tell me everything you love about tomatoes!',
+                        'romantic': 'Write me a romantic cooking story about making dinner for someone special',
+                        'technique': 'How do I properly sauté vegetables?'
+                    };
+                    
+                    this.currentMessage = scenarios[scenario];
+                    this.sendMessage();
+                }
+            }
+        }
+    </script>
+</body>
+</html>

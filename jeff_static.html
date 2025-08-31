@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jeff the LangGraph Chef - Static Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <style>
+        .tomato-gradient { background: linear-gradient(135deg, #ff6b6b, #ee5a52); }
+        .chef-card { background: linear-gradient(135deg, #f8f9ff, #e8f2ff); }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-orange-50 to-red-50 min-h-screen">
+    <div id="app" x-data="jeffDemo()" class="container mx-auto px-4 py-8">
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-4">🍅 Jeff the LangGraph Chef 👨‍🍳</h1>
+            <p class="text-lg text-gray-600 mb-6">Static Demo - Chat functionality requires server</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="chef-card rounded-xl p-6 shadow-lg">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">🧠 Jeff's Personality</h2>
+                
+                <div class="mb-6">
+                    <h3 class="text-lg font-medium mb-2">Current Mood</h3>
+                    <div class="text-center">
+                        <div class="text-3xl mb-2" x-text="personalityState.moodEmoji"></div>
+                        <div class="text-lg font-medium capitalize" x-text="personalityState.currentMood"></div>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <span>🍅 Tomato Obsession</span>
+                            <span x-text="personalityState.tomatoObsession + '/10'"></span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div class="tomato-gradient h-3 rounded-full" 
+                                 :style="`width: ${personalityState.tomatoObsession * 10}%`"></div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <span>💕 Romantic Intensity</span>
+                            <span x-text="personalityState.romanticIntensity + '/10'"></span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div class="bg-gradient-to-r from-pink-400 to-red-400 h-3 rounded-full" 
+                                 :style="`width: ${personalityState.romanticIntensity * 10}%`"></div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <span>⚡ Energy Level</span>
+                            <span x-text="personalityState.energyLevel + '/10'"></span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div class="bg-gradient-to-r from-yellow-400 to-orange-400 h-3 rounded-full" 
+                                 :style="`width: ${personalityState.energyLevel * 10}%`"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <h4 class="font-medium mb-3">🎭 Sample Responses</h4>
+                    <div class="space-y-2">
+                        <button @click="showSample('pasta')" 
+                                class="w-full py-2 px-3 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-lg text-sm transition-colors">
+                            🍝 Pasta Recipe Style
+                        </button>
+                        <button @click="showSample('tomato')" 
+                                class="w-full py-2 px-3 bg-red-100 hover:bg-red-200 text-red-800 rounded-lg text-sm transition-colors">
+                            🍅 Tomato Obsession
+                        </button>
+                        <button @click="showSample('romantic')" 
+                                class="w-full py-2 px-3 bg-pink-100 hover:bg-pink-200 text-pink-800 rounded-lg text-sm transition-colors">
+                            💕 Romantic Style
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chef-card rounded-xl p-6 shadow-lg">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">💬 Jeff's Response</h2>
+                
+                <div class="h-96 overflow-y-auto mb-4 p-4 bg-white rounded-lg border">
+                    <div class="space-y-4">
+                        <div class="flex justify-start">
+                            <div class="max-w-xs lg:max-w-md px-4 py-2 rounded-lg bg-gray-100 text-gray-800">
+                                <div class="whitespace-pre-wrap" x-text="currentResponse"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-center text-gray-500 text-sm">
+                    <p>This is a static demo showing Jeff's personality traits.</p>
+                    <p>For full chat functionality, the web server needs to be running.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function jeffDemo() {
+            return {
+                personalityState: {
+                    currentMood: 'enthusiastic',
+                    moodEmoji: '🤩',
+                    tomatoObsession: 9,
+                    romanticIntensity: 8,
+                    energyLevel: 7
+                },
+                
+                currentResponse: "*Dramatically flourishes chef's hat while holding a ripe tomato* 🍅\n\nWelcome to my kitchen, my dear! I'm Jeff, your romantically passionate culinary guide! Ask me about recipes, cooking techniques, or anything food-related - and I promise to weave some tomato magic into our conversation! ❤️👨‍🍳",
+                
+                showSample(type) {
+                    const samples = {
+                        pasta: "*Eyes sparkling with culinary passion* 🍝\n\nAh, bella mia! Let me share with you my most cherished pasta al pomodoro recipe! First, we'll need the most gorgeous, sun-kissed tomatoes - preferably San Marzanos, picked at the peak of ripeness when they're practically bursting with summer romance!\n\n*Caresses a perfect tomato*\n\nWe'll create a symphony of flavors that will make your heart sing like a Venetian serenade! 🍅❤️",
+                        
+                        tomato: "*Clutches chest dramatically, eyes misty with tomato devotion* 🍅\n\nOh, my darling friend, where do I even begin?! Tomatoes are not just ingredients - they are poetry in fruit form! Each crimson orb contains the very essence of summer sunshine, the whispered secrets of Mediterranean gardens, the promise of passionate flavors dancing on your tongue!\n\n*Spins around kitchen with arms outstretched*\n\nThey are my muse, my inspiration, my culinary soulmate! Whether it's a simple bruschetta or an elaborate ragu, tomatoes transform every dish into a love letter! 💕🍅",
+                        
+                        romantic: "*Lights candles and puts on soft Italian music* 🕯️\n\nPicture this, amore mio: You and your beloved in a moonlit kitchen, the gentle sizzle of garlic in olive oil, the intoxicating aroma of fresh basil, and there - the star of our romantic evening - plump, ruby-red tomatoes waiting to be transformed into magic!\n\n*Gestures grandly*\n\nWe'll create not just a meal, but a memory that will last forever, seasoned with passion and garnished with pure devotion! This is how love tastes, my dear! 💕👨‍🍳"
+                    };
+                    
+                    this.currentResponse = samples[type] || samples.pasta;
+                }
+            }
+        }
+    </script>
+</body>
+</html>
