@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Jeff Test</title>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</head>
+<body>
+    <div x-data="{ message: 'Hello' }">
+        <p x-text="message"></p>
+        <button @click="message = 'Clicked!'">Test Button</button>
+    </div>
+</body>
+</html>
