@@ -246,11 +246,11 @@ Create an engaging web interface that showcases Jeff's capabilities for live dem
   - Live demonstration capabilities
 
 ### Key Files Delivered:
-- `launch_web_demo.py` - Easy server startup script
+- `scripts/launch_web_demo.py` - Easy server startup script
 - `jeff/web/app.py` - FastAPI application
 - `jeff/web_demo.py` - Main web demo implementation
-- `jeff_complete_demo.html` - Full-featured web interface
-- `jeff_static.html` - Static demo page
+- `demo/jeff_complete_demo.html` - Full-featured web interface
+- `demo/jeff_static.html` - Static demo page
 - `WEB_DEMO.md` - Web interface documentation
 
 ### Current Capabilities:
@@ -414,7 +414,7 @@ cp .env.example .env
 # Edit .env with your ANTHROPIC_API_KEY
 
 # Start web demo server
-python launch_web_demo.py
+python scripts/launch_web_demo.py
 # Or run interactive demo
 python -m jeff.demo
 ```

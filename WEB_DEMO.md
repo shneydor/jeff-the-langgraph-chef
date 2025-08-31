@@ -35,7 +35,7 @@ A comprehensive web-based demonstration interface that showcases Jeff's capabili
 source venv/bin/activate
 
 # Launch web demo
-python launch_web_demo.py
+python scripts/launch_web_demo.py
 
 # Or directly
 python -m jeff.web_demo
