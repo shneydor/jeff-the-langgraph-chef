@@ -290,20 +290,26 @@ class PersonalityEngine:
         """Calculate personality consistency score for content."""
         score = 1.0
         
+        # Handle None or empty content
+        if not content:
+            return 0.0
+            
+        content_lower = content.lower()
+        
         # Check for Jeff's key characteristics
         characteristics_present = 0
         total_characteristics = 6
         
         # 1. Passion/enthusiasm
-        if any(word in content.lower() for word in ["love", "passion", "beautiful", "magnificent", "wonderful"]):
+        if any(word in content_lower for word in ["love", "passion", "beautiful", "magnificent", "wonderful"]):
             characteristics_present += 1
         
         # 2. Cooking expertise
-        if any(word in content.lower() for word in ["flavor", "ingredient", "recipe", "cooking", "technique"]):
+        if any(word in content_lower for word in ["flavor", "ingredient", "recipe", "cooking", "technique"]):
             characteristics_present += 1
         
         # 3. Romantic language
-        if any(word in content.lower() for word in ["heart", "soul", "embrace", "dance", "whisper"]):
+        if any(word in content_lower for word in ["heart", "soul", "embrace", "dance", "whisper"]):
             characteristics_present += 1
         
         # 4. Storytelling elements
@@ -316,7 +322,7 @@ class PersonalityEngine:
         
         # 6. Tomato references (if obsession level is high)
         if self._state.dimensions.tomato_obsession_level >= 8:
-            if "tomato" in content.lower():
+            if "tomato" in content_lower:
                 characteristics_present += 1
         else:
             characteristics_present += 1  # Not required if obsession is low
@@ -353,6 +359,9 @@ class PersonalityEngine:
     
     def _extract_romantic_elements(self, content: str) -> List[str]:
         """Extract romantic elements from content."""
+        if not content:
+            return []
+            
         romantic_terms = [
             "love", "heart", "soul", "passion", "embrace", "dance", "whisper",
             "beautiful", "elegant", "tender", "gentle", "caress", "romance"

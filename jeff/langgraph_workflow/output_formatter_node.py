@@ -6,7 +6,8 @@ from datetime import datetime, timezone
 from .base_node import BaseNode
 from .state import (
     JeffWorkflowState, 
-    StateManager
+    StateManager,
+    ContentType
 )
 
 
@@ -19,7 +20,16 @@ class OutputFormatterNode(BaseNode):
     async def _execute_logic(self, state: JeffWorkflowState) -> JeffWorkflowState:
         """Format final output with metadata and presentation."""
         
-        content = state.get("selected_variation") or state.get("generated_content", "") or "Oh my darling, it seems my response got lost in the kitchen!"
+        # Check if this is an image request with image response
+        content_type = state.get("content_type")
+        if content_type == ContentType.IMAGE_REQUEST:
+            image_response = state.get("image_response")
+            if image_response and image_response.get("jeff_commentary"):
+                content = image_response["jeff_commentary"]
+            else:
+                content = "Oh my darling, my artistic vision needs a moment to develop, like a fine sauce!"
+        else:
+            content = state.get("selected_variation") or state.get("generated_content", "") or "Oh my darling, it seems my response got lost in the kitchen!"
         
         # Apply formatting based on preferences
         formatted_output = await self._apply_formatting(content, state)
@@ -63,5 +73,15 @@ class OutputFormatterNode(BaseNode):
             "tomato_integration_score": quality_results[-1].get("tomato_integration", 0.0) if quality_results else 0.0,
             "romantic_elements_score": quality_results[-1].get("romantic_elements", 0.0) if quality_results else 0.0
         }
+        
+        # Add image-specific metadata if this is an image request
+        content_type = state.get("content_type")
+        if content_type == ContentType.IMAGE_REQUEST:
+            image_response = state.get("image_response")
+            image_metadata = state.get("image_generation_metadata", {})
+            if image_response:
+                metadata["image_response"] = image_response
+            if image_metadata:
+                metadata["image_generation"] = image_metadata
         
         return metadata

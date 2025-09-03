@@ -63,6 +63,15 @@ class InputProcessorNode(BaseNode):
                 r"healthy",
                 r"diet",
                 r"nutritious"
+            ],
+            ContentType.IMAGE_REQUEST: [
+                r"image of",
+                r"picture of",
+                r"photo of",
+                r"show me.*image",
+                r"create.*image",
+                r"generate.*image",
+                r"draw.*picture"
             ]
         }
     
@@ -75,7 +84,7 @@ class InputProcessorNode(BaseNode):
         content_type, confidence = self._classify_intent(raw_input)
         
         # Extract entities (ingredients, techniques, etc.)
-        entities = await self._extract_entities(raw_input)
+        entities = await self._extract_entities(raw_input, content_type)
         
         # Determine processing priority
         priority = self._determine_priority(raw_input, content_type)
@@ -113,7 +122,7 @@ class InputProcessorNode(BaseNode):
         best_intent = max(intent_scores.items(), key=lambda x: x[1])
         return best_intent[0], min(best_intent[1], 1.0)
     
-    async def _extract_entities(self, text: str) -> Dict[str, Any]:
+    async def _extract_entities(self, text: str, content_type: ContentType) -> Dict[str, Any]:
         """Extract entities like ingredients, techniques, cuisine types."""
         entities = {
             "ingredients": [],
@@ -121,7 +130,9 @@ class InputProcessorNode(BaseNode):
             "cuisine_types": [],
             "dietary_restrictions": [],
             "equipment": [],
-            "measurements": []
+            "measurements": [],
+            "image_description": None,
+            "image_style": None
         }
         
         # Simple pattern-based extraction (in production, would use NER)
@@ -168,7 +179,51 @@ class InputProcessorNode(BaseNode):
             if diet in text_lower:
                 entities["dietary_restrictions"].append(diet)
         
+        # Extract image-specific entities for image requests
+        if content_type == ContentType.IMAGE_REQUEST:
+            entities["image_description"] = self._extract_image_description(text)
+            entities["image_style"] = self._extract_image_style(text)
+        
         return entities
+    
+    def _extract_image_description(self, text: str) -> Optional[str]:
+        """Extract image description from text."""
+        # Remove image request keywords to get the actual description
+        description = text.lower()
+        
+        # Remove common image request prefixes
+        prefixes_to_remove = [
+            "image of", "picture of", "photo of", "show me an image of",
+            "create an image of", "generate an image of", "draw a picture of",
+            "make an image of", "create a picture of"
+        ]
+        
+        for prefix in prefixes_to_remove:
+            if description.startswith(prefix):
+                description = description[len(prefix):].strip()
+                break
+        
+        return description if description else None
+    
+    def _extract_image_style(self, text: str) -> Optional[str]:
+        """Extract desired image style from text."""
+        text_lower = text.lower()
+        
+        style_keywords = {
+            "romantic": "romantic_dinner",
+            "elegant": "elegant_plating", 
+            "rustic": "rustic_kitchen",
+            "restaurant": "restaurant_style",
+            "cooking": "cooking_process",
+            "close-up": "ingredient_focus",
+            "macro": "ingredient_focus"
+        }
+        
+        for keyword, style in style_keywords.items():
+            if keyword in text_lower:
+                return style
+        
+        return None
     
     def _determine_priority(self, text: str, content_type: ContentType) -> ProcessingPriority:
         """Determine processing priority based on content."""
@@ -180,7 +235,7 @@ class InputProcessorNode(BaseNode):
             return ProcessingPriority.URGENT
         
         # High priority content types
-        high_priority_types = [ContentType.RECIPE_REQUEST, ContentType.COOKING_QUESTION]
+        high_priority_types = [ContentType.RECIPE_REQUEST, ContentType.COOKING_QUESTION, ContentType.IMAGE_REQUEST]
         if content_type in high_priority_types:
             return ProcessingPriority.HIGH
         

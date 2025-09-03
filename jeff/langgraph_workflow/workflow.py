@@ -11,6 +11,7 @@ from .content_router_node import ContentRouterNode
 from .response_generator_node import ResponseGeneratorNode
 from .quality_validator_node import QualityValidatorNode
 from .output_formatter_node import OutputFormatterNode
+from .image_generator_node import ImageGeneratorNode
 
 
 class JeffWorkflowOrchestrator:
@@ -29,7 +30,8 @@ class JeffWorkflowOrchestrator:
             "content_router": ContentRouterNode(),
             "response_generator": ResponseGeneratorNode(),
             "quality_validator": QualityValidatorNode(),
-            "output_formatter": OutputFormatterNode()
+            "output_formatter": OutputFormatterNode(),
+            "image_generator": ImageGeneratorNode()
         }
     
     def _build_workflow(self) -> StateGraph:
@@ -45,6 +47,7 @@ class JeffWorkflowOrchestrator:
         workflow.add_node("response_generator", self.nodes["response_generator"].execute)
         workflow.add_node("quality_validator", self.nodes["quality_validator"].execute)
         workflow.add_node("output_formatter", self.nodes["output_formatter"].execute)
+        workflow.add_node("image_generator", self.nodes["image_generator"].execute)
         
         # Set entry point
         workflow.set_entry_point("input_processor")
@@ -61,12 +64,16 @@ class JeffWorkflowOrchestrator:
                 "recipe_generation": "response_generator",  # Would route to recipe nodes in full implementation
                 "general_response": "response_generator",
                 "knowledge_response": "response_generator",
+                "image_generation": "image_generator",
                 "error_handling": "output_formatter"
             }
         )
         
         # Response generation to quality validation
         workflow.add_edge("response_generator", "quality_validator")
+        
+        # Image generation to quality validation (image commentary gets quality checked too)
+        workflow.add_edge("image_generator", "quality_validator")
         
         # Quality validator with regeneration logic
         workflow.add_conditional_edges(
@@ -101,6 +108,7 @@ class JeffWorkflowOrchestrator:
             "knowledge_response": "general_response", 
             "ingredient_analysis": "general_response",
             "pairing_analysis": "general_response",
+            "image_generation": "image_generation",
             "general_response": "general_response"
         }
         
@@ -115,6 +123,11 @@ class JeffWorkflowOrchestrator:
         
         # Check if regeneration is needed
         if StateManager.is_regeneration_needed(state):
+            # Don't regenerate for image requests - images are expensive and can't be easily regenerated
+            content_type = state.get("content_type")
+            if content_type == ContentType.IMAGE_REQUEST:
+                return "format_output"
+                
             max_attempts = state.get("processing_config", {}).get("max_regeneration_attempts", 3)
             current_attempts = state.get("regeneration_count", 0)
             

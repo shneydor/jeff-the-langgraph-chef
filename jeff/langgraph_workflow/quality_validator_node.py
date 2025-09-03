@@ -5,6 +5,7 @@ from .state import (
     JeffWorkflowState, 
     StateManager, 
     WorkflowStage, 
+    ContentType,
     QualityCheckResult
 )
 from ..personality.engine import PersonalityEngine
@@ -79,7 +80,13 @@ class QualityValidatorNode(BaseNode):
         )
         
         # Determine if quality check passed
-        threshold = state.get("processing_config", {}).get("quality_threshold", 0.85)
+        # For image requests, use a lower threshold since the content is commentary, not a full response
+        content_type = state.get("content_type")
+        if content_type == ContentType.IMAGE_REQUEST:
+            threshold = state.get("processing_config", {}).get("image_quality_threshold", 0.5)
+        else:
+            threshold = state.get("processing_config", {}).get("quality_threshold", 0.85)
+        
         passed = overall_score >= threshold
         
         # Identify issues and suggestions

@@ -26,9 +26,15 @@ class ResponseGeneratorNode(BaseNode):
     async def _execute_logic(self, state: JeffWorkflowState) -> JeffWorkflowState:
         """Generate Jeff's response with personality applied."""
         
+        # Check if this is an image request - if so, skip text generation
+        content_type = state.get("content_type")
+        if content_type == ContentType.IMAGE_REQUEST:
+            # For image requests, we'll let the image generator handle the response
+            # Just pass through the state without generating text response
+            return state
+        
         # Get context for response generation
         user_input = state.get("processed_input", "")
-        content_type = state.get("content_type")
         personality_state = StateManager.get_personality_state(state)
         processing_flags = state.get("processing_flags", {})
         

@@ -36,6 +36,7 @@ class ContentType(str, Enum):
     FOOD_PAIRING = "food_pairing"
     NUTRITION_QUESTION = "nutrition_question"
     COOKING_TIPS = "cooking_tips"
+    IMAGE_REQUEST = "image_request"
 
 
 class ProcessingPriority(str, Enum):
@@ -143,6 +144,11 @@ class JeffWorkflowState(TypedDict):
     dietary_adaptations: List[str]
     nutritional_info: Optional[Dict[str, Any]]
     
+    # Image generation data
+    image_request: Optional[Dict[str, Any]]
+    image_response: Optional[Dict[str, Any]]
+    image_generation_metadata: Dict[str, Any]
+    
     # Quality assurance
     quality_check_results: List[Dict[str, Any]]  # Serialized QualityCheckResult
     regeneration_count: int
@@ -232,6 +238,11 @@ class StateManager:
             "cooking_techniques": [],
             "dietary_adaptations": [],
             "nutritional_info": None,
+            
+            # Image generation data
+            "image_request": None,
+            "image_response": None,
+            "image_generation_metadata": {},
             
             # Quality assurance
             "quality_check_results": [],

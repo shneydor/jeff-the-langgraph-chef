@@ -4,13 +4,14 @@ import asyncio
 import json
 import uuid
 import time
+import base64
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks, Request, status, Depends
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -41,6 +42,8 @@ structlog.configure(
 
 from ..langgraph_workflow.workflow import JeffWorkflowOrchestrator
 from ..core.config import settings
+from ..image.generator import ImageGenerator
+from ..image.models import ImageRequest, ImageResponse
 
 
 class ChatMessage(BaseModel):
@@ -131,6 +134,7 @@ class ConnectionManager:
 logger = structlog.get_logger()
 orchestrator = None
 manager = ConnectionManager()
+image_generator = None
 
 # Rate limiting
 limiter = Limiter(key_func=get_remote_address)
@@ -152,14 +156,19 @@ server_metrics = {
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan management."""
-    global orchestrator
+    global orchestrator, image_generator
     # Startup
     logger.info("Starting Jeff the LangGraph Chef server", version="1.0.0")
     try:
         orchestrator = JeffWorkflowOrchestrator()
         logger.info("LangGraph orchestrator initialized successfully")
+        
+        # Initialize image generator
+        image_generator = ImageGenerator()
+        health_status = await image_generator.health_check()
+        logger.info("Image generator initialized", health_status=health_status)
     except Exception as e:
-        logger.error("Failed to initialize orchestrator", error=str(e))
+        logger.error("Failed to initialize components", error=str(e))
         raise
     
     yield
@@ -167,6 +176,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Shutting down Jeff the LangGraph Chef server")
     orchestrator = None
+    image_generator = None
 
 
 # Create FastAPI app with production settings
@@ -1258,6 +1268,108 @@ async def update_personality(request: Request, credentials: HTTPAuthorizationCre
             "energy_level": settings.jeff_base_energy_level
         }
     })
+
+
+@app.post("/api/image/generate")
+@limiter.limit("10/minute")
+async def generate_image(request: Request, image_request: ImageRequest):
+    """Generate an image using Gemini Flash 2.5 with Jeff's personality."""
+    global image_generator
+    
+    if not image_generator:
+        raise HTTPException(
+            status_code=503,
+            detail="Image generation service not available"
+        )
+    
+    start_time = time.time()
+    request_id = str(uuid.uuid4())[:8]
+    
+    logger.info(
+        "Image generation request",
+        request_id=request_id,
+        description=image_request.description,
+        style=image_request.style,
+        include_tomatoes=image_request.include_tomatoes,
+        client_ip=request.client.host if request.client else "unknown"
+    )
+    
+    try:
+        # Generate image
+        image_response = await image_generator.generate_image(image_request)
+        processing_time = time.time() - start_time
+        
+        logger.info(
+            "Image generation completed",
+            request_id=request_id,
+            success=image_response.success,
+            generation_time=image_response.generation_time,
+            processing_time_ms=round(processing_time * 1000, 2)
+        )
+        
+        return JSONResponse({
+            "success": image_response.success,
+            "image_base64": image_response.image_base64,
+            "image_url": image_response.image_url,
+            "jeff_commentary": image_response.jeff_commentary,
+            "metadata": {
+                "generation_time": image_response.generation_time,
+                "style_applied": image_response.style_applied.value,
+                "tomato_integration": image_response.tomato_integration,
+                "personality_score": image_response.personality_score,
+                "quality_score": image_response.quality_score,
+                "prompt_used": image_response.prompt_used
+            },
+            "request": {
+                "description": image_request.description,
+                "style": image_request.style.value,
+                "include_tomatoes": image_request.include_tomatoes
+            },
+            "processing_time_ms": round(processing_time * 1000, 2),
+            "request_id": request_id
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        processing_time = time.time() - start_time
+        
+        logger.error(
+            "Image generation error",
+            request_id=request_id,
+            description=image_request.description,
+            error=str(e),
+            processing_time_ms=round(processing_time * 1000, 2),
+            exc_info=True
+        )
+        
+        raise HTTPException(
+            status_code=500,
+            detail="Image generation failed - please try again"
+        )
+
+
+@app.get("/api/image/download")
+async def download_image(image_id: str):
+    """Download a generated image by returning it as a file response."""
+    try:
+        # FastAPI automatically handles URL decoding, so decode directly from base64
+        # In a production system, you'd store images and use actual IDs
+        image_data = base64.b64decode(image_id)
+        
+        return Response(
+            content=image_data,
+            media_type="image/jpeg",
+            headers={
+                "Content-Disposition": f"attachment; filename=jeff_generated_image_{int(time.time())}.jpg"
+            }
+        )
+    except Exception as e:
+        logger.error("Image download error", image_id=image_id[:50], error=str(e))
+        raise HTTPException(
+            status_code=404,
+            detail="Image not found or invalid image ID"
+        )
 
 
 if __name__ == "__main__":

@@ -89,6 +89,14 @@ class ContentRouterNode(BaseNode):
                 "requires_knowledge_lookup": True
             })
         
+        elif content_type == ContentType.IMAGE_REQUEST:
+            routing_decision.update({
+                "primary_path": "image_generation",
+                "next_nodes": ["image_generator"],
+                "requires_image_generation": True,
+                "requires_special_processing": True
+            })
+        
         # Adjust based on confidence level
         if confidence < 0.5:
             routing_decision["next_nodes"].append("clarification_generator")
@@ -104,7 +112,7 @@ class ContentRouterNode(BaseNode):
             "apply_romantic_writing": features_enabled.get("romantic_writing", True),
             "integrate_tomatoes": features_enabled.get("tomato_integration", True),
             "use_memory_system": features_enabled.get("memory_system", False),
-            "generate_images": False,  # Will be enabled for recipe requests
+            "generate_images": False,  # Will be enabled for recipe requests and image requests
             "multi_platform_adapt": features_enabled.get("multi_platform", False),
             "quality_gate_required": features_enabled.get("quality_gates", True)
         }
@@ -112,6 +120,11 @@ class ContentRouterNode(BaseNode):
         # Content-specific flag adjustments
         if content_type == ContentType.RECIPE_REQUEST:
             flags["generate_images"] = features_enabled.get("image_generation", False)
+            flags["apply_romantic_writing"] = True
+            flags["integrate_tomatoes"] = True
+        
+        elif content_type == ContentType.IMAGE_REQUEST:
+            flags["generate_images"] = features_enabled.get("image_generation", True)
             flags["apply_romantic_writing"] = True
             flags["integrate_tomatoes"] = True
         
