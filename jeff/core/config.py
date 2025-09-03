@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     # API Keys
     anthropic_api_key: str = Field(..., env="ANTHROPIC_API_KEY")
     openai_api_key: Optional[str] = Field(None, env="OPENAI_API_KEY")
+    google_api_key: Optional[str] = Field(None, env="GOOGLE_API_KEY")
     
     # Database Configuration
     database_url: str = Field("sqlite:///./jeff_chef.db", env="DATABASE_URL")

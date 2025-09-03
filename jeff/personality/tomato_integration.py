@@ -354,6 +354,11 @@ class TomatoIntegrationEngine:
     def evaluate_tomato_integration_success(self, content: str, obsession_level: int) -> float:
         """Evaluate how well tomatoes were integrated into content."""
         score = 0.0
+        
+        # Handle None or empty content
+        if not content:
+            return 0.0
+            
         content_lower = content.lower()
         
         # Direct tomato mentions (50% of score)

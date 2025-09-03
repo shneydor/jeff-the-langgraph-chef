@@ -12,14 +12,12 @@ from jeff.langgraph_workflow.state import (
     ContentType,
     ProcessingPriority
 )
-from jeff.langgraph_workflow.nodes import (
-    InputProcessorNode,
-    PersonalityFilterNode,
-    ContentRouterNode,
-    ResponseGeneratorNode,
-    QualityValidatorNode,
-    OutputFormatterNode
-)
+from jeff.langgraph_workflow.input_processor_node import InputProcessorNode
+from jeff.langgraph_workflow.personality_filter_node import PersonalityFilterNode
+from jeff.langgraph_workflow.content_router_node import ContentRouterNode
+from jeff.langgraph_workflow.response_generator_node import ResponseGeneratorNode
+from jeff.langgraph_workflow.quality_validator_node import QualityValidatorNode
+from jeff.langgraph_workflow.output_formatter_node import OutputFormatterNode
 
 
 class TestStateManager:
@@ -151,7 +149,7 @@ class TestWorkflowNodes:
         assert "requires_recipe_generation" in routing_decision
     
     @pytest.mark.asyncio
-    @patch('jeff.langgraph_workflow.nodes.ChatAnthropic')
+    @patch('jeff.langgraph_workflow.response_generator_node.ChatAnthropic')
     async def test_response_generator_node(self, mock_llm_class, sample_state):
         """Test ResponseGeneratorNode."""
         # Mock the LLM response
@@ -237,7 +235,7 @@ class TestWorkflowOrchestrator:
             assert node_name in orchestrator.nodes
     
     @pytest.mark.asyncio
-    @patch('jeff.langgraph_workflow.nodes.ChatAnthropic')
+    @patch('jeff.langgraph_workflow.response_generator_node.ChatAnthropic')
     async def test_process_user_input_success(self, mock_llm_class, orchestrator):
         """Test successful user input processing."""
         # Mock LLM
@@ -265,7 +263,7 @@ class TestWorkflowOrchestrator:
     @pytest.mark.asyncio
     async def test_process_user_input_with_preferences(self, orchestrator):
         """Test processing with format preferences."""
-        with patch('jeff.langgraph_workflow.nodes.ChatAnthropic') as mock_llm_class:
+        with patch('jeff.langgraph_workflow.response_generator_node.ChatAnthropic') as mock_llm_class:
             mock_llm = Mock()
             mock_response = Mock()
             mock_response.content = "Test response"
